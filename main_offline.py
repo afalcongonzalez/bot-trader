@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Options Trading Simulator with Live Data
-A console application for simulating options trading strategies with real-time data
+Options Trading Simulator (Offline Version)
+A console application for simulating options trading strategies without external dependencies
 """
 
 import sys
@@ -13,8 +13,7 @@ import argparse
 
 from options_models import Option, OptionsStrategy, IronCondor, Straddle, Strangle
 from trading_engine import TradingEngine
-from strategy_analyzer import StrategyAnalyzer
-from data_fetcher import YahooFinanceDataFetcher
+from strategy_analyzer_safe import StrategyAnalyzer
 
 
 @dataclass
@@ -24,16 +23,14 @@ class SimulationConfig:
     risk_per_trade: float = 0.02  # 2% of capital per trade
     max_concurrent_trades: int = 5
     simulation_days: int = 30
-    use_live_data: bool = True
+    use_live_data: bool = False  # Always False for offline version
 
 
 class OptionsSimulator:
-    """Main application class for options trading simulation with live data"""
+    """Main application class for options trading simulation (offline version)"""
     
     def __init__(self):
-        self.data_fetcher = YahooFinanceDataFetcher()
         self.trading_engine = TradingEngine()
-        self.trading_engine.set_data_fetcher(self.data_fetcher)
         self.analyzer = StrategyAnalyzer()
         self.config = SimulationConfig()
         self.running = True
@@ -41,19 +38,17 @@ class OptionsSimulator:
     def display_menu(self):
         """Display main menu options"""
         print("\n" + "="*60)
-        print("    OPTIONS TRADING SIMULATOR (LIVE DATA)")
+        print("    OPTIONS TRADING SIMULATOR (OFFLINE MODE)")
         print("="*60)
         print("1. Configure Simulation")
         print("2. Add Options Data")
-        print("3. Fetch Live Data")
-        print("4. Analyze Strategy")
-        print("5. Run Simulation")
-        print("6. View Portfolio")
-        print("7. View Trade History")
-        print("8. Load Sample Data")
-        print("9. Market Status")
-        print("10. Export Results")
-        print("11. Exit")
+        print("3. Analyze Strategy")
+        print("4. Run Simulation")
+        print("5. View Portfolio")
+        print("6. View Trade History")
+        print("7. Load Sample Data")
+        print("8. Export Results")
+        print("9. Exit")
         print("="*60)
         
     def configure_simulation(self):
@@ -65,9 +60,8 @@ class OptionsSimulator:
             risk = float(input(f"Risk per Trade % (current: {self.config.risk_per_trade*100:.1f}%): ") or self.config.risk_per_trade*100) / 100
             max_trades = int(input(f"Max Concurrent Trades (current: {self.config.max_concurrent_trades}): ") or self.config.max_concurrent_trades)
             days = int(input(f"Simulation Days (current: {self.config.simulation_days}): ") or self.config.simulation_days)
-            use_live = input(f"Use Live Data (current: {self.config.use_live_data}) [y/n]: ").lower().startswith('y') if input() else self.config.use_live_data
             
-            self.config = SimulationConfig(capital, risk, max_trades, days, use_live)
+            self.config = SimulationConfig(capital, risk, max_trades, days, False)
             self.trading_engine.set_config(self.config)
             
             print(f"\n✓ Configuration updated:")
@@ -75,7 +69,7 @@ class OptionsSimulator:
             print(f"  Risk per Trade: {self.config.risk_per_trade*100:.1f}%")
             print(f"  Max Concurrent Trades: {self.config.max_concurrent_trades}")
             print(f"  Simulation Days: {self.config.simulation_days}")
-            print(f"  Use Live Data: {self.config.use_live_data}")
+            print(f"  Use Live Data: False (Offline Mode)")
             
         except ValueError:
             print("❌ Invalid input. Please enter valid numbers.")
@@ -103,153 +97,6 @@ class OptionsSimulator:
             return
         else:
             print("❌ Invalid choice")
-            
-    def fetch_live_data(self):
-        """Fetch live options data"""
-        print("\n--- Fetch Live Options Data ---")
-        
-        symbol = input("Enter symbol (e.g., AAPL): ").strip().upper()
-        if not symbol:
-            print("❌ Symbol is required")
-            return
-            
-        print(f"Fetching data for {symbol}...")
-        
-        # Get current stock price
-        current_price = self.data_fetcher.get_stock_price(symbol)
-        if current_price == 0:
-            print(f"❌ Could not fetch price for {symbol}")
-            return
-            
-        print(f"Current {symbol} price: ${current_price:.2f}")
-        
-        # Get available expirations
-        expirations = self.data_fetcher.get_available_expirations(symbol)
-        if not expirations:
-            print(f"❌ No options data available for {symbol}")
-            return
-            
-        print(f"Available expirations: {[exp.strftime('%Y-%m-%d') for exp in expirations[:5]]}")
-        
-        # Let user choose expiration
-        try:
-            exp_input = input("Enter expiration date (YYYY-MM-DD) or press Enter for closest: ").strip()
-            if exp_input:
-                expiration = datetime.strptime(exp_input, "%Y-%m-%d").date()
-            else:
-                expiration = expirations[0]
-                
-            if expiration not in expirations:
-                print(f"❌ Expiration {expiration} not available")
-                return
-                
-        except ValueError:
-            print("❌ Invalid date format")
-            return
-            
-        # Show strategy options
-        print("\nAvailable strategies:")
-        print("1. Iron Condor")
-        print("2. Straddle")
-        print("3. Strangle")
-        
-        strategy_choice = input("Select strategy (1-3): ").strip()
-        
-        if strategy_choice == "1":
-            self._fetch_iron_condor(symbol, current_price, expiration)
-        elif strategy_choice == "2":
-            self._fetch_straddle(symbol, current_price, expiration)
-        elif strategy_choice == "3":
-            self._fetch_strangle(symbol, current_price, expiration)
-        else:
-            print("❌ Invalid choice")
-            
-    def _fetch_iron_condor(self, symbol: str, current_price: float, expiration: date):
-        """Fetch iron condor data"""
-        print("Fetching Iron Condor data...")
-        
-        data = self.data_fetcher.get_iron_condor_data(symbol, current_price, expiration)
-        if not data:
-            print("❌ Could not fetch iron condor data")
-            return
-            
-        print(f"\nIron Condor Data for {symbol}:")
-        print(f"  Short Call: ${data['short_call_strike']:.2f} @ ${data['short_call_premium']:.2f}")
-        print(f"  Long Call: ${data['long_call_strike']:.2f} @ ${data['long_call_premium']:.2f}")
-        print(f"  Short Put: ${data['short_put_strike']:.2f} @ ${data['short_put_premium']:.2f}")
-        print(f"  Long Put: ${data['long_put_strike']:.2f} @ ${data['long_put_premium']:.2f}")
-        print(f"  Net Credit: ${data['net_credit']:.2f}")
-        
-        if input("Add this Iron Condor? (y/n): ").lower().startswith('y'):
-            iron_condor = IronCondor(
-                symbol=symbol,
-                current_price=current_price,
-                expiration=expiration,
-                short_call_strike=data['short_call_strike'],
-                long_call_strike=data['long_call_strike'],
-                short_put_strike=data['short_put_strike'],
-                long_put_strike=data['long_put_strike'],
-                net_credit=data['net_credit']
-            )
-            
-            self.trading_engine.add_strategy(iron_condor)
-            print("✓ Iron Condor added!")
-            
-    def _fetch_straddle(self, symbol: str, current_price: float, expiration: date):
-        """Fetch straddle data"""
-        print("Fetching Straddle data...")
-        
-        data = self.data_fetcher.get_straddle_data(symbol, current_price, expiration)
-        if not data:
-            print("❌ Could not fetch straddle data")
-            return
-            
-        print(f"\nStraddle Data for {symbol}:")
-        print(f"  Strike: ${data['strike']:.2f}")
-        print(f"  Call Premium: ${data['call_premium']:.2f}")
-        print(f"  Put Premium: ${data['put_premium']:.2f}")
-        print(f"  Total Cost: ${data['total_cost']:.2f}")
-        
-        if input("Add this Straddle? (y/n): ").lower().startswith('y'):
-            straddle = Straddle(
-                symbol=symbol,
-                strike=data['strike'],
-                current_price=current_price,
-                expiration=expiration,
-                call_premium=data['call_premium'],
-                put_premium=data['put_premium']
-            )
-            
-            self.trading_engine.add_strategy(straddle)
-            print("✓ Straddle added!")
-            
-    def _fetch_strangle(self, symbol: str, current_price: float, expiration: date):
-        """Fetch strangle data"""
-        print("Fetching Strangle data...")
-        
-        data = self.data_fetcher.get_strangle_data(symbol, current_price, expiration)
-        if not data:
-            print("❌ Could not fetch strangle data")
-            return
-            
-        print(f"\nStrangle Data for {symbol}:")
-        print(f"  Call Strike: ${data['call_strike']:.2f} @ ${data['call_premium']:.2f}")
-        print(f"  Put Strike: ${data['put_strike']:.2f} @ ${data['put_premium']:.2f}")
-        print(f"  Total Cost: ${data['total_cost']:.2f}")
-        
-        if input("Add this Strangle? (y/n): ").lower().startswith('y'):
-            strangle = Strangle(
-                symbol=symbol,
-                call_strike=data['call_strike'],
-                put_strike=data['put_strike'],
-                current_price=current_price,
-                expiration=expiration,
-                call_premium=data['call_premium'],
-                put_premium=data['put_premium']
-            )
-            
-            self.trading_engine.add_strategy(strangle)
-            print("✓ Strangle added!")
             
     def _add_single_option(self):
         """Add a single option"""
@@ -370,13 +217,6 @@ class OptionsSimulator:
         for i, strategy in enumerate(self.trading_engine.strategies, 1):
             print(f"\nStrategy {i}: {strategy.__class__.__name__}")
             
-            # Update current price if using live data
-            if self.config.use_live_data:
-                current_price = self.data_fetcher.get_stock_price(strategy.symbol)
-                if current_price > 0:
-                    strategy.current_price = current_price
-                    print(f"  Updated {strategy.symbol} price: ${current_price:.2f}")
-            
             analysis = self.analyzer.analyze_strategy(strategy)
             
             print(f"  Symbol: {strategy.symbol}")
@@ -397,7 +237,7 @@ class OptionsSimulator:
             
         print("\n--- Running Simulation ---")
         print(f"Simulating {self.config.simulation_days} days with ${self.config.initial_capital:,.2f} capital...")
-        print(f"Using {'live' if self.config.use_live_data else 'simulated'} data")
+        print("Using simulated data (offline mode)")
         
         results = self.trading_engine.run_simulation()
         
@@ -466,25 +306,6 @@ class OptionsSimulator:
         
         print("✓ Loaded sample AAPL Iron Condor and TSLA Straddle")
         
-    def market_status(self):
-        """Show market status"""
-        print("\n--- Market Status ---")
-        
-        status = self.data_fetcher.get_market_status()
-        
-        print(f"Market State: {status['market_state']}")
-        print(f"Market Open: {'Yes' if status['is_open'] else 'No'}")
-        if status['last_update']:
-            print(f"Last Update: {status['last_update']}")
-            
-        # Show some popular symbols
-        popular_symbols = ['SPY', 'QQQ', 'AAPL', 'TSLA', 'MSFT']
-        print(f"\nCurrent Prices:")
-        for symbol in popular_symbols:
-            price = self.data_fetcher.get_stock_price(symbol)
-            if price > 0:
-                print(f"  {symbol}: ${price:.2f}")
-                
     def export_results(self):
         """Export simulation results to JSON"""
         results = {
@@ -503,42 +324,36 @@ class OptionsSimulator:
         
     def run(self):
         """Main application loop"""
-        print("Welcome to Options Trading Simulator with Live Data!")
-        print("This tool helps you simulate options trading strategies with real-time market data.")
-        
-        # Show market status on startup
-        self.market_status()
+        print("Welcome to Options Trading Simulator (Offline Mode)!")
+        print("This tool helps you simulate options trading strategies.")
+        print("For live data features, install: pip install yfinance numpy pandas")
         
         while self.running:
             try:
                 self.display_menu()
-                choice = input("\nSelect an option (1-11): ").strip()
+                choice = input("\nSelect an option (1-9): ").strip()
                 
                 if choice == "1":
                     self.configure_simulation()
                 elif choice == "2":
                     self.add_options_data()
                 elif choice == "3":
-                    self.fetch_live_data()
-                elif choice == "4":
                     self.analyze_strategy()
-                elif choice == "5":
+                elif choice == "4":
                     self.run_simulation()
-                elif choice == "6":
+                elif choice == "5":
                     self.view_portfolio()
-                elif choice == "7":
+                elif choice == "6":
                     self.view_trade_history()
-                elif choice == "8":
+                elif choice == "7":
                     self.load_sample_data()
-                elif choice == "9":
-                    self.market_status()
-                elif choice == "10":
+                elif choice == "8":
                     self.export_results()
-                elif choice == "11":
+                elif choice == "9":
                     print("Goodbye!")
                     self.running = False
                 else:
-                    print("❌ Invalid choice. Please select 1-11.")
+                    print("❌ Invalid choice. Please select 1-9.")
                     
             except KeyboardInterrupt:
                 print("\n\nGoodbye!")
@@ -549,17 +364,13 @@ class OptionsSimulator:
 
 def main():
     """Main entry point"""
-    parser = argparse.ArgumentParser(description="Options Trading Simulator with Live Data")
+    parser = argparse.ArgumentParser(description="Options Trading Simulator (Offline)")
     parser.add_argument("--config", help="Load configuration from JSON file")
     parser.add_argument("--sample", action="store_true", help="Load sample data and exit")
-    parser.add_argument("--live", action="store_true", help="Enable live data by default")
     
     args = parser.parse_args()
     
     simulator = OptionsSimulator()
-    
-    if args.live:
-        simulator.config.use_live_data = True
         
     if args.config:
         # Load configuration from file

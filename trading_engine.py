@@ -1,5 +1,5 @@
 """
-Trading engine for simulating options trades
+Trading engine for simulating options trades with live data support
 """
 
 import random
@@ -46,10 +46,11 @@ class SimulationConfig:
     risk_per_trade: float = 0.02  # 2% of capital per trade
     max_concurrent_trades: int = 5
     simulation_days: int = 30
+    use_live_data: bool = True
 
 
 class TradingEngine:
-    """Engine for simulating options trading"""
+    """Engine for simulating options trading with live data support"""
     
     def __init__(self):
         self.cash = 10000.0
@@ -60,6 +61,11 @@ class TradingEngine:
         self.config = SimulationConfig()
         self.current_date = date.today()
         self.trade_counter = 0
+        self.data_fetcher = None  # Will be set by main app
+        
+    def set_data_fetcher(self, data_fetcher):
+        """Set the data fetcher for live data"""
+        self.data_fetcher = data_fetcher
         
     def set_config(self, config: SimulationConfig):
         """Set simulation configuration"""
@@ -147,6 +153,12 @@ class TradingEngine:
         # Ensure price doesn't go negative
         return max(new_price, 0.01)
         
+    def get_live_price(self, symbol: str) -> float:
+        """Get live price if data fetcher is available"""
+        if self.data_fetcher and self.config.use_live_data:
+            return self.data_fetcher.get_stock_price(symbol)
+        return 0.0
+        
     def execute_trade(self, strategy: OptionsStrategy, action: str) -> Optional[Trade]:
         """Execute a trade"""
         position_size = self.calculate_position_size(strategy)
@@ -189,9 +201,21 @@ class TradingEngine:
                 continue
                 
             # Update current price
-            position.current_price = self.simulate_price_movement(
-                position.symbol, position.current_price, 1
-            )
+            if self.config.use_live_data and self.data_fetcher:
+                # Try to get live price
+                live_price = self.get_live_price(position.symbol)
+                if live_price > 0:
+                    position.current_price = live_price
+                else:
+                    # Fallback to simulated movement
+                    position.current_price = self.simulate_price_movement(
+                        position.symbol, position.current_price, 1
+                    )
+            else:
+                # Use simulated movement
+                position.current_price = self.simulate_price_movement(
+                    position.symbol, position.current_price, 1
+                )
             
             # Update unrealized P&L
             strategy.current_price = position.current_price
@@ -325,3 +349,13 @@ class TradingEngine:
     def get_trade_history(self) -> List[Dict]:
         """Get trade history"""
         return [asdict(trade) for trade in self.trades]
+        
+    def update_live_prices(self):
+        """Update all strategy prices with live data"""
+        if not self.data_fetcher or not self.config.use_live_data:
+            return
+            
+        for strategy in self.strategies:
+            live_price = self.get_live_price(strategy.symbol)
+            if live_price > 0:
+                strategy.current_price = live_price

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Options Trading Simulator with Live Data
-A console application for simulating options trading strategies with real-time data
+Options Trading Simulator with Live Data (Safe Version)
+A console application for simulating options trading strategies with optional live data
 """
 
 import sys
@@ -14,7 +14,30 @@ import argparse
 from options_models import Option, OptionsStrategy, IronCondor, Straddle, Strangle
 from trading_engine import TradingEngine
 from strategy_analyzer import StrategyAnalyzer
-from data_fetcher import YahooFinanceDataFetcher
+
+# Try to import live data components, but don't fail if they're not available
+try:
+    from data_fetcher import YahooFinanceDataFetcher
+    LIVE_DATA_AVAILABLE = True
+except ImportError:
+    print("⚠️  Live data features not available. Install yfinance, numpy, pandas for full functionality.")
+    LIVE_DATA_AVAILABLE = False
+    
+    # Create a dummy data fetcher
+    class YahooFinanceDataFetcher:
+        def get_stock_price(self, symbol):
+            print(f"❌ Live data not available. Please install: pip install yfinance numpy pandas")
+            return 0.0
+        def get_market_status(self):
+            return {'market_state': 'UNKNOWN', 'is_open': False, 'last_update': None}
+        def get_available_expirations(self, symbol):
+            return []
+        def get_iron_condor_data(self, symbol, current_price, expiration):
+            return {}
+        def get_straddle_data(self, symbol, current_price, expiration):
+            return {}
+        def get_strangle_data(self, symbol, current_price, expiration):
+            return {}
 
 
 @dataclass
@@ -24,11 +47,11 @@ class SimulationConfig:
     risk_per_trade: float = 0.02  # 2% of capital per trade
     max_concurrent_trades: int = 5
     simulation_days: int = 30
-    use_live_data: bool = True
+    use_live_data: bool = LIVE_DATA_AVAILABLE
 
 
 class OptionsSimulator:
-    """Main application class for options trading simulation with live data"""
+    """Main application class for options trading simulation with optional live data"""
     
     def __init__(self):
         self.data_fetcher = YahooFinanceDataFetcher()
@@ -41,17 +64,26 @@ class OptionsSimulator:
     def display_menu(self):
         """Display main menu options"""
         print("\n" + "="*60)
-        print("    OPTIONS TRADING SIMULATOR (LIVE DATA)")
+        if LIVE_DATA_AVAILABLE:
+            print("    OPTIONS TRADING SIMULATOR (LIVE DATA)")
+        else:
+            print("    OPTIONS TRADING SIMULATOR (OFFLINE MODE)")
         print("="*60)
         print("1. Configure Simulation")
         print("2. Add Options Data")
-        print("3. Fetch Live Data")
+        if LIVE_DATA_AVAILABLE:
+            print("3. Fetch Live Data")
+        else:
+            print("3. Fetch Live Data (Not Available)")
         print("4. Analyze Strategy")
         print("5. Run Simulation")
         print("6. View Portfolio")
         print("7. View Trade History")
         print("8. Load Sample Data")
-        print("9. Market Status")
+        if LIVE_DATA_AVAILABLE:
+            print("9. Market Status")
+        else:
+            print("9. Market Status (Not Available)")
         print("10. Export Results")
         print("11. Exit")
         print("="*60)
@@ -65,7 +97,12 @@ class OptionsSimulator:
             risk = float(input(f"Risk per Trade % (current: {self.config.risk_per_trade*100:.1f}%): ") or self.config.risk_per_trade*100) / 100
             max_trades = int(input(f"Max Concurrent Trades (current: {self.config.max_concurrent_trades}): ") or self.config.max_concurrent_trades)
             days = int(input(f"Simulation Days (current: {self.config.simulation_days}): ") or self.config.simulation_days)
-            use_live = input(f"Use Live Data (current: {self.config.use_live_data}) [y/n]: ").lower().startswith('y') if input() else self.config.use_live_data
+            
+            if LIVE_DATA_AVAILABLE:
+                use_live = input(f"Use Live Data (current: {self.config.use_live_data}) [y/n]: ").lower().startswith('y') if input() else self.config.use_live_data
+            else:
+                use_live = False
+                print("Live data not available - using simulated data only")
             
             self.config = SimulationConfig(capital, risk, max_trades, days, use_live)
             self.trading_engine.set_config(self.config)
@@ -106,6 +143,11 @@ class OptionsSimulator:
             
     def fetch_live_data(self):
         """Fetch live options data"""
+        if not LIVE_DATA_AVAILABLE:
+            print("❌ Live data features not available.")
+            print("To enable live data, install: pip install yfinance numpy pandas")
+            return
+            
         print("\n--- Fetch Live Options Data ---")
         
         symbol = input("Enter symbol (e.g., AAPL): ").strip().upper()
@@ -371,7 +413,7 @@ class OptionsSimulator:
             print(f"\nStrategy {i}: {strategy.__class__.__name__}")
             
             # Update current price if using live data
-            if self.config.use_live_data:
+            if self.config.use_live_data and LIVE_DATA_AVAILABLE:
                 current_price = self.data_fetcher.get_stock_price(strategy.symbol)
                 if current_price > 0:
                     strategy.current_price = current_price
@@ -397,7 +439,7 @@ class OptionsSimulator:
             
         print("\n--- Running Simulation ---")
         print(f"Simulating {self.config.simulation_days} days with ${self.config.initial_capital:,.2f} capital...")
-        print(f"Using {'live' if self.config.use_live_data else 'simulated'} data")
+        print(f"Using {'live' if self.config.use_live_data and LIVE_DATA_AVAILABLE else 'simulated'} data")
         
         results = self.trading_engine.run_simulation()
         
@@ -468,6 +510,11 @@ class OptionsSimulator:
         
     def market_status(self):
         """Show market status"""
+        if not LIVE_DATA_AVAILABLE:
+            print("❌ Market status not available.")
+            print("To enable market status, install: pip install yfinance numpy pandas")
+            return
+            
         print("\n--- Market Status ---")
         
         status = self.data_fetcher.get_market_status()
@@ -503,11 +550,16 @@ class OptionsSimulator:
         
     def run(self):
         """Main application loop"""
-        print("Welcome to Options Trading Simulator with Live Data!")
-        print("This tool helps you simulate options trading strategies with real-time market data.")
+        print("Welcome to Options Trading Simulator!")
+        if LIVE_DATA_AVAILABLE:
+            print("This tool helps you simulate options trading strategies with real-time market data.")
+        else:
+            print("This tool helps you simulate options trading strategies.")
+            print("For live data features, install: pip install yfinance numpy pandas")
         
-        # Show market status on startup
-        self.market_status()
+        # Show market status on startup if available
+        if LIVE_DATA_AVAILABLE:
+            self.market_status()
         
         while self.running:
             try:
@@ -549,7 +601,7 @@ class OptionsSimulator:
 
 def main():
     """Main entry point"""
-    parser = argparse.ArgumentParser(description="Options Trading Simulator with Live Data")
+    parser = argparse.ArgumentParser(description="Options Trading Simulator")
     parser.add_argument("--config", help="Load configuration from JSON file")
     parser.add_argument("--sample", action="store_true", help="Load sample data and exit")
     parser.add_argument("--live", action="store_true", help="Enable live data by default")
@@ -558,7 +610,7 @@ def main():
     
     simulator = OptionsSimulator()
     
-    if args.live:
+    if args.live and LIVE_DATA_AVAILABLE:
         simulator.config.use_live_data = True
         
     if args.config:

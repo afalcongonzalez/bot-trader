@@ -1,0 +1,10 @@
+{
+  "symbols": ["SPY", "QQQ", "AAPL", "TSLA", "MSFT", "GOOGL", "NVDA", "AMZN"],
+  "intervals": {
+    "monitoring": 300,
+    "trading": 1800
+  },
+  "risk": 0.02,
+  "max_positions": 5,
+  "capital": 10000.0
+}
