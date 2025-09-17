@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  options-simulator:
+    build: .
+    container_name: options-trading-simulator
+    volumes:
+      - ./data:/app/data
+      - ./results:/app/results
+    environment:
+      - PYTHONUNBUFFERED=1
+    stdin_open: true
+    tty: true
+    command: python main.py
+    
+  # Optional: Add a Jupyter notebook service for data analysis
+  jupyter:
+    build: .
+    container_name: options-jupyter
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./data:/app/data
+      - ./results:/app/results
+      - ./notebooks:/app/notebooks
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+    command: >
+      bash -c "pip install jupyter jupyterlab &&
+               jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''"
+    profiles:
+      - jupyter

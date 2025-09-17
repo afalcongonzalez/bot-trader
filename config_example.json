@@ -1,0 +1,6 @@
+{
+  "initial_capital": 10000.0,
+  "risk_per_trade": 0.02,
+  "max_concurrent_trades": 5,
+  "simulation_days": 30
+}
